@@ -1,0 +1,385 @@
+<!DOCTYPE html>
+<html>
+	<head>
+		<meta charset="utf-8">
+		<title>LifeGame</title>
+		<link href="css/index.css" rel="stylesheet"/>
+		<script type="text/javascript" src="js/jquery-3.1.1.js"></script>
+		<script type="text/javascript">
+			function lifeGame(canvasId, rows, columns, livingCells){
+				game = this;
+				this.speed = 100;
+				this.map = new Map(canvasId, rows, columns, livingCells);
+				this.intervalNumber = -1;
+				
+				window.onresize = function(){
+					windowWidth = window.innerWidth/2;
+					windowHeight = window.innerHeight;
+					game.map.canvas.width = windowWidth;
+					game.map.canvas.height = windowHeight;
+					game.map.context = game.map.canvas.getContext('2d');
+					game.map.adjustMapSize();
+					game.map.render();				
+				}	
+				
+				this.createMap = function(canvasId, lines, columns, livingCells) {
+					this.map = new Map(this.map.canvasId, lines, columns, livingCells);
+					this.map.ajustMapSize();
+					this.map.render();
+				}
+				this.clearMap = function() {
+					this.map = new Map(this.map.canvasId, this.map.rows, this.map.columns, 0);
+//					this.map.draw();
+				}
+			}
+		//坐标向量
+		var Vector2 = function(x,y){
+			this.x = x;
+			this.y = y;
+		};
+		Vector2.prototype = {
+			copy : function ( ) {
+				return new Vector2 ( this.x , this.y );
+			} ,
+			length : function ( ) {
+				return Math.sqrt ( this.x * this.x + this.y * this.y );
+			} ,
+			sqrlength : function ( ) {
+				return this.x * this.x + this.y * this.y;
+			} ,
+			normalize : function ( ) {
+				var inv = 1 / this.length ( );
+				return new Vector2 ( this.x * inv , this.y * inv );
+			} ,
+			negate : function ( ) {
+				return new Vector2 ( - this.x , - this.y );
+			} ,
+			add : function ( v ) {
+				return new Vector2 ( this.x + v.x , this.y + v.y );
+			} ,
+			subtract : function ( v ) {
+				return new Vector2 ( this.x - v.x , this.x - v.y );
+			} ,
+			multiply : function ( f ) {
+				return new Vector2 ( this.x * f , this.y * f );
+			} ,
+			divide : function ( f ) {
+				return this.multiply ( 1 / f );
+			} ,
+			dot : function ( v ) {
+				return this.x * v.x + this.y + v.y;
+			}
+		}
+		
+		var Map = function(canvasId,rows,columns,livingCells){
+			map = this;
+			this.canvasId = canvasId;
+			this.canvas = document.getElementById(this.canvasId);
+			console.log(this.canvas);
+			this.context = this.canvas.getContext("2d");
+			//地图中元素的一些基本属性
+			this.rows = parseInt(rows);
+			this.columns = parseInt(columns);
+			this.mapSize = this.rows*this.columns;
+			this.livingCells = livingCells <= this.mapSize?livingCells:this.mapSize;
+			this.cellWidth = this.cellHeight = null;
+			this.mapWidth = this.mapHeight = 0;
+			
+			this.mapArray = new Array();
+			this.dynamicArray = new Array();
+			this.adjustArray = new Array();
+			//颜色列表	
+			this.colorList = {
+				dieCell : new Color('#D0D0D0'),
+				livingCell : new Color('#f6a1b6'),
+				border : new Color('#EBEBEB'),
+				background : new Color('#d7e1e3')
+			};	
+			
+			this.fps = 0;//这个属性暂时没有用到
+//			初始化
+			this.initialise = function(){
+				for(var i = 0;i<this.rows;i++){
+					this.mapArray[i] = new Array();
+					for(var j = 0;j<this.columns;j++){
+						this.mapArray[i][j] = new Cell(new Vector2(i,j),0,0);
+					}
+				}
+				var i = this.livingCells -1;
+				$("#rows").val(this.rows);
+				$("#columns").val(this.columns);
+//				$("#need_cells").val(this.livingCells);
+//				$("#living_cells").val(this.livingCells);
+				this.adjustMapSize();
+			}
+			
+			this.adjustMapSize = function(){
+				var width = window.innerWidth/3;
+				var height = window.innerHeight/1.3;
+				
+				this.canvas.width = width;
+				this.canvas.height = height;
+				
+				//设置网格的宽高
+				if(this.canvas.height/this.rows > this.canvas.width /this.columns ){
+					this.cellWidth = this.canvas.width/this.columns;	
+					this.cellHeight = this.canvas.width/this.columns;
+				}else {				
+					this.cellWidth = this.canvas.height/this.rows;
+					this.cellHeight = this.canvas.height/this.rows;
+				}
+				console.log(parseInt(this.cellWidth));
+				console.log(parseInt(this.cellHeight));			
+				this.mapWidth = this.columns*this.cellWidth;
+				this.mapHeight = this.rows*this.cellHeight;
+				this.canvas.width = this.columns * this.cellWidth;
+				console.log(this.canvas.width);
+				this.canvas.height = this.rows * this.cellHeight;
+			}
+			
+			this.draw = function() {
+				if (!map.livingCells) {
+					game.stop();
+				}
+				$("living_cells").value = map.livingCells;
+				map.execute();
+				map.render();
+				++map.fps;
+			}
+			//在这里真正地进行画图
+			this.render = function(dataArray) {
+//				$("#living_cell").val(this.livingCells);
+				this.context.fillStyle = this.colorList.background.hex;
+				this.context.fillRect(0,0,this.canvas.width,this.canvas.height);				
+				//				画出格线来
+				if (this.mapSize < 100000) {
+					this.context.strokeStyle = this.colorList.border.hex;
+					this.context.lineWidth = "1";
+					this.context.beginPath();
+					i = this.rows;
+					while (i > 0) {//画横线
+						this.context.moveTo(0, i * this.cellHeight);
+						this.context.lineTo(this.columns * this.cellWidth, i * this.cellHeight); 
+						--i;
+					}
+					i = this.columns;
+					while (i > 0) {//画竖线
+						this.context.moveTo(i * this.cellWidth, 0);
+						this.context.lineTo(i * this.cellHeight, this.rows * this.cellHeight); 
+						--i;
+					}
+					this.context.stroke();
+				}
+			}
+			this.refresh = function(){				
+				var i = this.dynamicArray.length - 1;
+				while(i>=0){
+					this.context.fillStyle = this.colorList.livingCell.hex;
+					console.log(this.dynamicArray[i]);
+					this.context.fillRect(this.dynamicArray[i].position.y * this.cellWidth, this.dynamicArray[i].position.x * this.cellHeight, this.cellWidth, this.cellHeight);
+					i--;
+				}
+				if (this.mapSize < 100000) {
+					this.context.strokeStyle = this.colorList.border.hex;
+					this.context.lineWidth = "1";
+					this.context.beginPath();
+					i = this.rows;
+					while (i > 0) {//画横线
+						this.context.moveTo(0, i * this.cellHeight);
+						this.context.lineTo(this.columns * this.cellWidth, i * this.cellHeight); 
+						--i;
+					}
+					i = this.columns;
+					while (i > 0) {//画竖线
+						this.context.moveTo(i * this.cellWidth, 0);
+						this.context.lineTo(i * this.cellHeight, this.rows * this.cellHeight); 
+						--i;
+					}
+					this.context.stroke();
+				}
+			}
+			this.initialise();
+			this.render();
+		}
+		
+		//处理颜色值
+		function Color(r, g, b, a) {
+			if ( typeof arguments[0] == typeof arguments[1] && typeof arguments[1] == typeof arguments[2] && typeof arguments[2] == "number") {
+				this.r = Number(arguments[0]);
+				this.g = Number(arguments[1]);
+				this.b = Number(arguments[2]);
+				for (var i = 0; i < 3; ++i) {
+					this.hex = "#" + toHex2(this.r) + toHex2(this.g) + toHex2(this.b);
+				}
+				if (arguments.length == 4) {
+					this.alpha = arguments[3];
+				} else {
+					this.alpha = 127;
+				}
+			} else if ( typeof arguments[0] == "string") {
+				this.hex = arguments[0];
+				if (this.hex.length == 3) {
+					var str = this.hex.split("");
+					this.hex = "0" + str[0] + "0" + str[1] + "0" + str[2];
+				} else if (this.hex.length == 6) {
+					this.hex = "#" + this.hex;
+				}
+				this.r = toDec2(this.hex[1] + this.hex[2]);
+				this.g = toDec2(this.hex[3] + this.hex[4]);
+				this.b = toDec2(this.hex[5] + this.hex[6]);
+				if (arguments.length == 2) {
+					this.alpha = arguments[3];
+				} else {
+					this.alpha = 127;
+				}
+			}
+			function toDec2(){
+					return parseInt(this,16);
+				}
+				function toHex2 () {
+				if (String(this).length == 1)
+					return "0" + parseInt(this,16);
+				else
+					return parseInt(this,16);
+				}
+			}
+			var Cell = function(position){
+				this.position = position;
+//				this.livingAround = 0;
+//				this.opreated = 0;
+			}
+		</script>
+	</head>
+	<body>
+		<img src="img/logo4.png" width="32%" height="11%" style="position:absolute;left:45px;top:20px">   
+
+		<!--<>-->
+		<div class="feature-panel">
+			<div class="input_panel">
+				<input type="text" placeholder="rows" id="rows"/>
+				<input type="text" placeholder="columns" id="columns" />
+			</div>
+			<div class="btn_panel">
+				<div id="create">创建</div>
+				<div id="start">开始</div>			
+			</div>
+			<div class="btn_panel">
+				<div id="stop">暂停</div>
+				<div id="next">Next</div>
+			</div>
+		</div>
+		<div class="content">
+			<canvas id="lifeGame" width="400" height="400"></canvas>
+		</div>
+		<script type="text/javascript">
+		window.onload = function(){
+//			var lifeGame;
+			$("#create").click(function(){
+				$.ajax({
+					type:"get",
+					url:"http://120.27.98.95/LifeGame/GameSetting",
+					async:true,
+					data:{
+						"row":$("#rows").val(),
+						"col":$("#columns").val()
+					},
+					success:function(data){
+						if(data == 1){
+							lifeGame = new lifeGame('lifeGame',$("#rows").val(),$("#columns").val(),0);//为什么这里加上var就不对了？？	
+						}else if(data == 0){
+							console.log("fjasl");
+						}
+					}
+				});		
+			});	
+			
+			$("#start").mousedown(function(){
+				$.ajax({
+					type:"get",
+					url:"http://120.27.98.95/LifeGame/GameStart",
+					async:true,
+					dataType:'json',
+					success:function(data){
+						if(data == 0){
+							alert("failed");
+						}else{
+							console.log(data);
+							handleData(data);
+						}						
+					}
+				});
+				function handleData(data){
+					console.log(data.c);
+					console.log(data.r);
+					console.log(data.d);
+					for(var i = 1; i<=data.r; i++){//行数
+						for(var j = 1; j<=data.c; j++){//列数
+//							new Vector2(i,j);
+							console.log(data.d[i*j - 1]);
+							if(data.d[i*j - 1]){
+								lifeGame.map.dynamicArray.push(new Cell(new Vector2(i,j)));								
+							}
+						}
+					}
+					console.log(lifeGame.map.dynamicArray);
+					lifeGame.map.refresh();
+				}
+			});
+			//刷新地图
+			var interval;
+			$("#start").mouseup(function(){
+				interval = window.setInterval(function refreshMap(){				
+					$.ajax({
+						type:"get",
+						url:"http://120.27.98.95/LifeGame/GameRefresh",
+						async:false,
+						dataType:'json',
+						success:function(data){	
+							lifeGame.clearMap();
+							for(var i = 1; i<=data.r; i++){//行数
+								for(var j = 1; j<=data.c; j++){//列数
+									if(data.d[i*j - 1]){
+	//									console.log(data.d);
+//										lifeGame.map.dynamicArray.length = 0;			
+										lifeGame.map.dynamicArray.push(new Cell(new Vector2(i,j)));												
+									}
+								}							
+								lifeGame.map.refresh();
+							}
+						}
+					});					
+				},300);			
+			});		
+			
+			//暂停
+			$("#stop").click(function(){
+				clearInterval(interval);
+			});
+			
+			//下一步
+			$("#next").click(function(){
+				clearInterval(interval);
+				$.ajax({
+					type:"get",
+					url:"http://120.27.98.95/LifeGame/GameRefresh",
+					async:false,
+					dataType:'json',
+					success:function(data){	
+						lifeGame.clearMap();
+						for(var i = 1; i<=data.r; i++){//行数
+							for(var j = 1; j<=data.c; j++){//列数
+								if(data.d[i*j - 1]){
+//									console.log(data.d);
+//										lifeGame.map.dynamicArray.length = 0;			
+									lifeGame.map.dynamicArray.push(new Cell(new Vector2(i,j)));												
+								}
+							}							
+							lifeGame.map.refresh();
+						}
+					}
+				});	
+			});
+		}		
+		</script>
+	</body>
+</html>

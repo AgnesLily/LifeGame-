@@ -1,0 +1,70 @@
+body{
+	background-size: cover;
+	background:url(../img/back10.jpg) ;
+}
+.input_panel{
+	margin: 0 auto;
+	width: 35%;
+	margin-top:30px ;
+	clear: both;
+	z-index: 100 !important;
+}
+.input_panel input{
+	display: inline-block;
+	width: 40%;
+	padding:10px;
+	border: 1px solid #fff;
+	border-radius: 5px;
+	z-index: 100 !important;
+}
+#rows {
+	float: left;
+}
+#columns {
+	float: right;
+}
+.btn_panel {
+	clear: both;
+	width: 30%;
+	margin: 0 auto;
+	margin-top: 20px;
+}
+#create,#start,#stop,#next{
+	display: inline-block;
+	width: 20%;
+	text-align: center;
+	border: 1px solid #ddd;
+	padding: 10px;
+	cursor: pointer;
+	border-radius: 5px;
+	margin-top: 10px;
+	color: #fff;
+}
+#create,#stop{
+	float: left;
+	margin-left: 20%;
+}
+#start,#next {
+	float:right;
+	margin-right: 20%;
+}
+@media screen and (max-width: 500px){
+	.input_panel{
+		width: 60%;	
+	}
+	.btn_panel{
+		width:60%;
+	}
+	.content{
+		width: 60%;
+	}
+}
+.content {
+	width: 33%;
+	margin: 0 auto;
+	margin-top: 70px;
+}
+#lifeGame {
+	margin: 0 auto;
+	text-align: center;
+}
